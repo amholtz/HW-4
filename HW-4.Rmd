@@ -44,7 +44,7 @@ US_state <- map_data("state") %>%
 US_county <- map_data("county") %>% 
   tbl_df()
 
-COUNTY <-read.csv("/Users/Andrew/Dropbox/Senior Spring/Data Science/Lectures/Homework/HW-4/CY/county.csv")
+COUNTY <-read.csv("/Users/Andrew/Dropbox/Senior Spring/Data Science/Lectures/Homework/HW-4/Data/county.csv")
 
 ```
 
@@ -177,7 +177,7 @@ leaflet(VT) %>%
   addTiles() %>% 
   addPolylines(color="black", weight=1)
 
-census <- read.csv("~/Dropbox/Senior Spring/Data Science/Lectures/Homework/HW-4/R11168779_SL140.csv")
+census <- read.csv("~/Dropbox/Senior Spring/Data Science/Lectures/Homework/HW-4/Data/R11168779_SL140.csv")
 
 census <- census %>% select(Geo_NAME, Geo_TRACT, Geo_FIPS, SE_T054_001,	SE_T054_002,
                             SE_T054_003,	SE_T054_004,	SE_T054_005,	SE_T054_006,
