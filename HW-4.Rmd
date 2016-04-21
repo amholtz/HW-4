@@ -17,18 +17,20 @@ suppressPackageStartupMessages(library(rgdal))
 suppressPackageStartupMessages(library(maptools))
 # For interactive maps
 suppressPackageStartupMessages(library(leaflet))
+suppressPackageStartupMessages(library(stringr))
+suppressPackageStartupMessages(library(plotly))
 ```
 
 ## Admistrative:
 
 Please indicate
 
-* Who you collaborated with:
-* Roughly how much time you spent on this HW:
-* What gave you the most trouble:
-* Any comments you have: 
-
-
+* Who you collaborated with: Mohamed Hussein
+* Roughly how much time you spent on this HW: 5 hours
+* What gave you the most trouble: Figuring out what data set to download and 
+then some how merge this with the VT data- Mohamed helped me with this. 
+* Any comments you have: I have not even began to think about how I'm going to 
+get this running with Shiny Apps. 
 
 
 
@@ -41,14 +43,17 @@ US_state <- map_data("state") %>%
   tbl_df()
 US_county <- map_data("county") %>% 
   tbl_df()
+
+COUNTY <-read.csv("/Users/Andrew/Dropbox/Senior Spring/Data Science/Lectures/Homework/HW-4/CY/county.csv")
+
 ```
 
-### Choropleth Map of US Voter Behavior in 2000
+###Choropleth Map of US Voter Behavior in 2000
 
 Download the results of the 2000 election from the [School of Public Affairs at 
 American University in DC](http://www.american.edu/spa/ccps/Data-Sets.cfm) and 
 create a map involving only the lower 48 states that show voter behavior at a 
-**county** level. To keep things simple let's only consider George W. Bush, Al
+**county** level. To keep things simple lets only consider George W. Bush, Al
 Gore, and Ralph Nader. Your write-up must include:
 
 1. A [choropleth map](https://en.wikipedia.org/wiki/Choropleth_map) where
@@ -92,30 +97,58 @@ trick that allows you to have different `data` and different `aes` apply to
 different `geom`'s; in this case state-level vs county-level data.
 
 ```{r}
+
+pgore <- as.numeric(as.character(COUNTY$PGORE))
+pnader <- as.numeric(as.character(COUNTY$PNADER))
+COUNTY$PBUSH <- as.numeric(as.character(COUNTY$PBUSH))
+
+st_co <- COUNTY %>% 
+  mutate(PGO_NA = pgore + pnader) %>% 
+  mutate(state = clean_text(STATE)) %>% 
+  mutate(county = clean_text(COUNTY))
+
+st_co <- st_co %>% 
+  mutate(state = str_replace_all(state, fixed(" "),"")) %>% 
+  mutate(county = str_replace_all(county, fixed(" "),"")) %>% 
+  select(state, county, PBUSH, PGO_NA)
+
+US_county <- US_county %>% 
+  mutate(region = str_replace_all(region, fixed(" "),"")) %>% 
+  mutate(subregion = str_replace_all(subregion, fixed(" "),""))
+  
+
+stco_coor <- right_join(US_county, st_co, 
+                        by = c("region" = "state", "subregion" = "county"))
+
+
 ggplot(data=NULL) +
   geom_polygon(data=US_county, aes(x=long, y=lat, group=group, fill=1)) +
   geom_path(data=US_county, aes(x=long, y=lat, group=group), col="black", size=0.05) +
   geom_path(data=US_state, aes(x=long, y=lat, group=group), col="black", size=0.1) +
-  coord_map()
+  geom_polygon(data = stco_coor, aes(x=long, y=lat, group=group, fill = PBUSH)) +
+  coord_map() +
+  scale_fill_gradientn(name="Election Result", 
+                       colours = c("#261758", "white", "#801515"),
+                       values = (c(0,0.499, 0.5, 0.5001, 1.0)))
+
 ```
 
 
 ### Write-Up
-
+As you can see from this map, the coasts prodominately voted democrat. The
+counties that voted for Bush are seen to be in the middle of the country. This
+also follows city lines. The counties with large cities (also the smaller of 
+counties) voted democratic, while the more rural, larger counties, voted for
+Bush. 
 ```{r, fig.width=12, fig.height=6}
 
 ```
 
-
-
-
-
-
 ## Question 2:
 
 In this question, you must make an interactive "Single File" Shiny app that uses
-Leaflet. For all 184 census tracts in VT in the 2010 census, present
-information on the proportion of the population that is either
+Leaflet. For all 184 census tracts in VT in the 2010 census, present information
+on the proportion of the population that is either
 
 * White
 * African-American
@@ -127,8 +160,8 @@ Use [Social Explorer](http://www.socialexplorer.com/) to get census data. I did
 a demo of this in class. If you don't remember how or are stuck, please speak to
 me or get help from your peers. Do not submit copies of the same file.
 
-There should be some mechanism in your Shiny app that allows one the user to toggle
-between the different ethnic groups.
+There should be some mechanism in your Shiny app that allows one the user to 
+toggle between the different ethnic groups.
 
 
 ### Loading Shapefile Data
@@ -137,10 +170,81 @@ Here is some starter code:
 
 ```{r}
 shapefile_name <- paste(getwd(), "/VT_census_tracts/tl_2015_50_tract.shp", sep="")
+
 VT <- readOGR(shapefile_name, layer = "tl_2015_50_tract", verbose = FALSE)
+
 leaflet(VT) %>%
   addTiles() %>% 
   addPolylines(color="black", weight=1)
+
+census <- read.csv("~/Dropbox/Senior Spring/Data Science/Lectures/Homework/HW-4/R11168779_SL140.csv")
+
+census <- census %>% select(Geo_NAME, Geo_TRACT, Geo_FIPS, SE_T054_001,	SE_T054_002,
+                            SE_T054_003,	SE_T054_004,	SE_T054_005,	SE_T054_006,
+                            SE_T054_007,	SE_T054_008)
+
+# Rename columns
+names(census)[4]<-"tot_pop"
+names(census)[5]<-"white_pop"
+names(census)[6]<-"black_pop"
+names(census)[7]<-"nativ"
+names(census)[8]<-"asian"
+names(census)[9]<-"hawaii"
+names(census)[10]<-"other"
+names(census)[11]<-"mixed"
+
+
+# proportions of each race in VT by total pop
+census <- census %>% 
+  mutate(prop_white = white_pop/tot_pop) %>% 
+  mutate(prop_black = black_pop/tot_pop) %>% 
+  mutate(prop_nativ = nativ/tot_pop) %>% 
+  mutate(prop_asian = asian/tot_pop) %>% 
+  mutate(prop_hawaii = hawaii/tot_pop) %>% 
+  mutate(prop_other = other/tot_pop) %>% 
+  mutate(prop_mixed = mixed/tot_pop)
+  
+#Prop_white
+leaflet(VT) %>%
+  addPolygons(
+    stroke = FALSE, fillOpacity = 0.5, smoothFactor = 0.5,
+    color = ~colorQuantile("Greys", census$prop_white)(census$prop_white)) %>% 
+  addTiles() %>% 
+  addPolylines(color="black", weight=1) %>% 
+  addLegend("bottomright", values = ~census$prop_white,
+    title = "Proportion White of Total Pop",
+    labFormat = labelFormat(prefix = ""),
+    opacity = 1, pal = colorNumeric("Greys", census$prop_white))
+
+#Mo showed me how to do this
+
+#Prop_black
+leaflet(VT) %>%
+  addPolygons(
+    stroke = FALSE, fillOpacity = 0.5, smoothFactor = 0.5,
+    color = ~colorQuantile("YlGnBu", census$prop_black)(census$prop_black)) %>% 
+  addTiles() %>% 
+  addPolylines(color="black", weight=1) %>% 
+  addLegend("bottomright", values = ~census$prop_black,
+    title = "Proportion Black of Total Pop",
+    labFormat = labelFormat(prefix = ""),
+    opacity = 1, pal = colorNumeric("YlGnBu", census$prop_black))
+
+#Prop_asian
+leaflet(VT) %>%
+  addPolygons(
+    stroke = FALSE, fillOpacity = 0.5, smoothFactor = 0.5,
+    color = ~colorQuantile("RdPu", census$prop_asian)(census$prop_asian)) %>% 
+  addTiles() %>% 
+  addPolylines(color="black", weight=1) %>% 
+  addLegend("bottomright", values = ~census$prop_asian,
+    title = "Proportion Asian of Total Pop",
+    labFormat = labelFormat(prefix = ""),
+    opacity = 1, pal = colorNumeric("RdPu", census$prop_asian))
+
+#Prop_hispanic. I will do this later. 
+
+
 ```
 
 
